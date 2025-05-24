@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Points from WebSockets with Three.js</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; }
+    </style>
+</head>
+<body>
+    <script>
+        const socket = io();
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Настраиваем камеру
+        camera.position.z = 300;
+
+        // Управление камерой
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.25;
+        controls.screenSpacePanning = false;
+
+        let data_points = [];
+        let points;
+        let particlesGeometry;
+
+        // Создаем оси
+        const axesHelper = new THREE.AxesHelper( 200 ); // Длина осей
+        scene.add( axesHelper );
+
+
+        // Создание текстовых меток для осей
+
+        const loader = new THREE.FontLoader();
+
+        loader.load('https://unpkg.com/three@0.128.0/examples/fonts/helvetiker_regular.typeface.json', function ( font ) {
+                const xTextGeometry = new THREE.TextGeometry('X', { font: font, size: 20, height: 1, });
+               const yTextGeometry = new THREE.TextGeometry('Y', { font: font, size: 20, height: 1, });
+                 const zTextGeometry = new THREE.TextGeometry('Z', { font: font, size: 20, height: 1, });
+
+
+                const textMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
+                const xText = new THREE.Mesh(xTextGeometry, textMaterial);
+                 const yText = new THREE.Mesh(yTextGeometry, textMaterial);
+                const zText = new THREE.Mesh(zTextGeometry, textMaterial);
+
+
+                xText.position.set(220, 0, 0);
+                yText.position.set(0, 220, 0);
+                  zText.position.set(0, 0, 220);
+
+                scene.add(xText);
+                scene.add(yText);
+                scene.add(zText);
+
+
+         });
+       
+        socket.on('data', function(msg) {
+             const x = msg.x;
+            const z = msg.y;
+            const y = msg.z;
+
+            data_points.push({x, y, z});
+
+            if (data_points.length > 5000) {
+                data_points.shift();
+            }
+
+            if (points) {
+                scene.remove(points);
+            }
+
+            const vertices = [];
+            data_points.forEach(point => {
+                vertices.push(point.x, point.y, point.z);
+            });
+
+
+            particlesGeometry = new THREE.BufferGeometry();
+             particlesGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            const particleMaterial = new THREE.PointsMaterial({ color: 0xffa500, size: 3 });
+           points = new THREE.Points(particlesGeometry, particleMaterial);
+             scene.add(points);
+
+
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
+
