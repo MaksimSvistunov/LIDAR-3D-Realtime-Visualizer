@@ -1,109 +1,222 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Points from WebSockets with Three.js</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
-    <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <style>
-        body { margin: 0; overflow: hidden; }
-    </style>
-</head>
-<body>
-    <script>
-        const socket = io();
-
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        document.body.appendChild(renderer.domElement);
-
-        // Настраиваем камеру
-        camera.position.z = 300;
-
-        // Управление камерой
-        const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        controls.dampingFactor = 0.25;
-        controls.screenSpacePanning = false;
-
-        let data_points = [];
-        let points;
-        let particlesGeometry;
-
-        // Создаем оси
-        const axesHelper = new THREE.AxesHelper( 200 ); // Длина осей
-        scene.add( axesHelper );
-
-
-        // Создание текстовых меток для осей
-
-        const loader = new THREE.FontLoader();
-
-        loader.load('https://unpkg.com/three@0.128.0/examples/fonts/helvetiker_regular.typeface.json', function ( font ) {
-                const xTextGeometry = new THREE.TextGeometry('X', { font: font, size: 20, height: 1, });
-               const yTextGeometry = new THREE.TextGeometry('Y', { font: font, size: 20, height: 1, });
-                 const zTextGeometry = new THREE.TextGeometry('Z', { font: font, size: 20, height: 1, });
-
-
-                const textMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-                const xText = new THREE.Mesh(xTextGeometry, textMaterial);
-                 const yText = new THREE.Mesh(yTextGeometry, textMaterial);
-                const zText = new THREE.Mesh(zTextGeometry, textMaterial);
-
-
-                xText.position.set(220, 0, 0);
-                yText.position.set(0, 220, 0);
-                  zText.position.set(0, 0, 220);
-
-                scene.add(xText);
-                scene.add(yText);
-                scene.add(zText);
-
-
-         });
-       
-        socket.on('data', function(msg) {
-             const x = msg.x;
-            const z = msg.y;
-            const y = msg.z;
-
-            data_points.push({x, y, z});
-
-            if (data_points.length > 5000) {
-                data_points.shift();
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>3D Points from WebSockets with Three.js</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+        <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+        <script src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+        <style>
+            body {
+                margin: 0;
+                overflow: hidden;
             }
+        </style>
+    </head>
+    <body>
+        <div style="position: absolute; top: 10px; left: 10px; z-index: 100">
+            <button id="makeSlice">Сделать срез</button>
+            <br />
+            <br />
+            <div>
+                <label style="color: white">Плоскость среза:</label>
+                <select id="planeSelect">
+                    <option value="xy">XY (срез по Z)</option>
+                    <option value="yz">YZ (срез по X)</option>
+                    <option value="xz">XZ (срез по Y)</option>
+                </select>
+            </div>
+            <br />
+            <div>
+                <label style="color: white">Положение среза:</label>
+                <input
+                    type="range"
+                    id="slicePosition"
+                    min="-100"
+                    max="100"
+                    value="-100"
+                />
+                <span id="sliceValue" style="color: white">0</span>
+            </div>
+        </div>
+        <script>
+            // Добавить в начало скрипта
+            let sliceActive = false;
+            let slicePlane = "xy";
+            let slicePos = 0;
 
-            if (points) {
-                scene.remove(points);
-            }
+            document
+                .getElementById("makeSlice")
+                .addEventListener("click", () => {
+                    sliceActive = !sliceActive;
+                    if (sliceActive) {
+                        document.getElementById("makeSlice").textContent =
+                            "Отменить срез";
+                    } else {
+                        document.getElementById("makeSlice").textContent =
+                            "Сделать срез";
+                    }
+                    updatePoints();
+                });
 
-            const vertices = [];
-            data_points.forEach(point => {
-                vertices.push(point.x, point.y, point.z);
+            // Управление плоскостью среза
+            document
+                .getElementById("planeSelect")
+                .addEventListener("change", (e) => {
+                    slicePlane = e.target.value;
+                    updatePoints();
+                });
+
+            // Управление положением среза
+            document
+                .getElementById("slicePosition")
+                .addEventListener("input", (e) => {
+                    slicePos = parseInt(e.target.value);
+                    document.getElementById("sliceValue").textContent =
+                        slicePos;
+                    updatePoints();
+                });
+
+            const socket = io();
+
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(
+                75,
+                window.innerWidth / window.innerHeight,
+                0.1,
+                1000
+            );
+            const renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // Настраиваем камеру
+            camera.position.x = 300;
+            camera.position.y = 200;
+            camera.position.z = 300;
+
+            // Управление камерой
+            const controls = new THREE.OrbitControls(
+                camera,
+                renderer.domElement
+            );
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.25;
+            controls.screenSpacePanning = false;
+
+            let data_points = [];
+            let points;
+            let particlesGeometry;
+
+            // Создаем оси
+            const axesHelper = new THREE.AxesHelper(200); // Длина осей
+            scene.add(axesHelper);
+
+            // Создание текстовых меток для осей
+
+            const loader = new THREE.FontLoader();
+
+            loader.load(
+                "https://unpkg.com/three@0.128.0/examples/fonts/helvetiker_regular.typeface.json",
+                function (font) {
+                    const xTextGeometry = new THREE.TextGeometry("X", {
+                        font: font,
+                        size: 20,
+                        height: 1,
+                    });
+                    const yTextGeometry = new THREE.TextGeometry("Y", {
+                        font: font,
+                        size: 20,
+                        height: 1,
+                    });
+                    const zTextGeometry = new THREE.TextGeometry("Z", {
+                        font: font,
+                        size: 20,
+                        height: 1,
+                    });
+
+                    const textMaterial = new THREE.MeshBasicMaterial({
+                        color: 0xffffff,
+                    });
+                    const xText = new THREE.Mesh(xTextGeometry, textMaterial);
+                    const yText = new THREE.Mesh(yTextGeometry, textMaterial);
+                    const zText = new THREE.Mesh(zTextGeometry, textMaterial);
+
+                    xText.position.set(220, 0, 0);
+                    yText.position.set(0, 220, 0);
+                    zText.position.set(0, 0, 220);
+
+                    scene.add(xText);
+                    scene.add(yText);
+                    scene.add(zText);
+                }
+            );
+
+            // Модифицировать существующую функцию обработки данных
+            socket.on("data", function (msg) {
+                const x = msg.x;
+                const z = msg.y;
+                const y = msg.z;
+                data_points.push({ x, y, z });
+                if (data_points.length > 5000) {
+                    data_points.shift();
+                }
+                updatePoints();
             });
 
+            // Добавить функцию обновления точек с учетом среза
+            function updatePoints() {
+                if (points) {
+                    scene.remove(points);
+                }
 
-            particlesGeometry = new THREE.BufferGeometry();
-             particlesGeometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-            const particleMaterial = new THREE.PointsMaterial({ color: 0xffa500, size: 3 });
-           points = new THREE.Points(particlesGeometry, particleMaterial);
-             scene.add(points);
+                const vertices = [];
+                data_points.forEach((point) => {
+                    let show = true;
 
+                    // Применяем фильтр в зависимости от выбранной плоскости
+                    if (sliceActive) {
+                        switch (slicePlane) {
+                            case "xy":
+                                show = parseInt(point.z) == slicePos;
+                                break;
+                            case "yz":
+                                show = parseInt(point.x) == slicePos;
+                                break;
+                            case "xz":
+                                show = parseInt(point.y) == slicePos;
+                                break;
+                        }
+                    }
 
-        });
+                    if (show) {
+                        vertices.push(point.x, point.y, point.z);
+                    }
+                });
 
-        function animate() {
-            requestAnimationFrame(animate);
-            controls.update();
-            renderer.render(scene, camera);
-        }
+                particlesGeometry = new THREE.BufferGeometry();
+                particlesGeometry.setAttribute(
+                    "position",
+                    new THREE.Float32BufferAttribute(vertices, 3)
+                );
 
-        animate();
-    </script>
-</body>
+                const particleMaterial = new THREE.PointsMaterial({
+                    color: 0xffa500,
+                    size: 3,
+                });
+
+                points = new THREE.Points(particlesGeometry, particleMaterial);
+                scene.add(points);
+            }
+
+            function animate() {
+                requestAnimationFrame(animate);
+                controls.update();
+                renderer.render(scene, camera);
+            }
+
+            animate();
+        </script>
+    </body>
 </html>
-
