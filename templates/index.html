@@ -16,66 +16,158 @@
     </head>
     <body>
         <div style="position: absolute; top: 10px; left: 10px; z-index: 100">
-            <button id="makeSlice">Сделать срез</button>
-            <br />
-            <br />
-            <div>
-                <label style="color: white">Плоскость среза:</label>
-                <select id="planeSelect">
-                    <option value="xy">XY (срез по Z)</option>
-                    <option value="yz">YZ (срез по X)</option>
-                    <option value="xz">XZ (срез по Y)</option>
-                </select>
-            </div>
-            <br />
-            <div>
-                <label style="color: white">Положение среза:</label>
+            <button id="toggleCustomSlice">Применить срез</button>
+            <button id="resetSliceParams" style="margin-left: 10px">
+                Сбросить параметры
+            </button>
+            <br /><br />
+            <label style="color: white; display: block; margin-bottom: 5px"
+                >Углы нормали к плоскости (градусы):</label
+            >
+            <div style="margin-bottom: 10px">
+                <label style="color: white">X:</label>
                 <input
                     type="range"
-                    id="slicePosition"
+                    id="angleX"
+                    value="90"
+                    min="0"
+                    max="180"
+                    style="
+                        width: 100px;
+                        margin-right: 5px;
+                        vertical-align: middle;
+                    "
+                /><span
+                    id="angleXValue"
+                    style="color: white; margin-right: 10px"
+                    >90</span
+                >
+                <label style="color: white">Y:</label>
+                <input
+                    type="range"
+                    id="angleY"
+                    value="90"
+                    min="0"
+                    max="180"
+                    style="
+                        width: 100px;
+                        margin-right: 5px;
+                        vertical-align: middle;
+                    "
+                /><span
+                    id="angleYValue"
+                    style="color: white; margin-right: 10px"
+                    >90</span
+                >
+                <label style="color: white">Z:</label>
+                <input
+                    type="range"
+                    id="angleZ"
+                    value="0"
+                    min="0"
+                    max="180"
+                    style="width: 100px; vertical-align: middle"
+                /><span id="angleZValue" style="color: white">0</span>
+            </div>
+            <div>
+                <label style="color: white">Смещение плоскости:</label>
+                <input
+                    type="range"
+                    id="sliceOffset"
                     min="-100"
                     max="100"
-                    value="-100"
+                    value="0"
+                    style="vertical-align: middle"
                 />
-                <span id="sliceValue" style="color: white">0</span>
+                <span id="sliceOffsetValue" style="color: white">0</span>
             </div>
         </div>
         <script>
-            // Добавить в начало скрипта
+            // Глобальные переменные для управления срезом
             let sliceActive = false;
-            let slicePlane = "xy";
-            let slicePos = 0;
 
+            const defaultAngleX = 90;
+            const defaultAngleY = 90;
+            const defaultAngleZ = 0;
+            const defaultSliceOffset = 0;
+
+            let angleX_deg = defaultAngleX;
+            let angleY_deg = defaultAngleY;
+            let angleZ_deg = defaultAngleZ;
+            let sliceOffsetVal = defaultSliceOffset;
+            const sliceThickness = 1.5; // Толщина среза
+
+            // Инициализация отображения значения смещения и углов
+            document.getElementById("sliceOffsetValue").textContent =
+                sliceOffsetVal;
+            document.getElementById("angleXValue").textContent = angleX_deg;
+            document.getElementById("angleYValue").textContent = angleY_deg;
+            document.getElementById("angleZValue").textContent = angleZ_deg;
+
+            // Управление активацией/деактивацией среза
             document
-                .getElementById("makeSlice")
+                .getElementById("toggleCustomSlice")
                 .addEventListener("click", () => {
                     sliceActive = !sliceActive;
-                    if (sliceActive) {
-                        document.getElementById("makeSlice").textContent =
-                            "Отменить срез";
-                    } else {
-                        document.getElementById("makeSlice").textContent =
-                            "Сделать срез";
-                    }
+                    document.getElementById("toggleCustomSlice").textContent =
+                        sliceActive ? "Отменить срез" : "Применить срез";
                     updatePoints();
                 });
 
-            // Управление плоскостью среза
-            document
-                .getElementById("planeSelect")
-                .addEventListener("change", (e) => {
-                    slicePlane = e.target.value;
-                    updatePoints();
-                });
+            // Управление углами нормали
+            document.getElementById("angleX").addEventListener("input", (e) => {
+                angleX_deg = parseFloat(e.target.value);
+                document.getElementById("angleXValue").textContent = angleX_deg;
+                if (sliceActive) updatePoints();
+            });
+            document.getElementById("angleY").addEventListener("input", (e) => {
+                angleY_deg = parseFloat(e.target.value);
+                document.getElementById("angleYValue").textContent = angleY_deg;
+                if (sliceActive) updatePoints();
+            });
+            document.getElementById("angleZ").addEventListener("input", (e) => {
+                angleZ_deg = parseFloat(e.target.value);
+                document.getElementById("angleZValue").textContent = angleZ_deg;
+                if (sliceActive) updatePoints();
+            });
 
-            // Управление положением среза
+            // Управление смещением плоскости среза
             document
-                .getElementById("slicePosition")
+                .getElementById("sliceOffset")
                 .addEventListener("input", (e) => {
-                    slicePos = parseInt(e.target.value);
-                    document.getElementById("sliceValue").textContent =
-                        slicePos;
-                    updatePoints();
+                    sliceOffsetVal = parseFloat(e.target.value);
+                    document.getElementById("sliceOffsetValue").textContent =
+                        sliceOffsetVal;
+                    if (sliceActive) updatePoints();
+                });
+
+            // Управление сбросом параметров среза
+            document
+                .getElementById("resetSliceParams")
+                .addEventListener("click", () => {
+                    angleX_deg = defaultAngleX;
+                    angleY_deg = defaultAngleY;
+                    angleZ_deg = defaultAngleZ;
+                    sliceOffsetVal = defaultSliceOffset;
+
+                    document.getElementById("angleX").value = angleX_deg;
+                    document.getElementById("angleY").value = angleY_deg;
+                    document.getElementById("angleZ").value = angleZ_deg;
+                    document.getElementById("sliceOffset").value =
+                        sliceOffsetVal;
+
+                    document.getElementById("angleXValue").textContent =
+                        angleX_deg;
+                    document.getElementById("angleYValue").textContent =
+                        angleY_deg;
+                    document.getElementById("angleZValue").textContent =
+                        angleZ_deg;
+                    document.getElementById("sliceOffsetValue").textContent =
+                        sliceOffsetVal;
+
+                    if (sliceActive) {
+                        updatePoints();
+                    }
                 });
 
             const socket = io();
@@ -165,35 +257,55 @@
                 updatePoints();
             });
 
-            // Добавить функцию обновления точек с учетом среза
+            // Обновленная функция обновления точек с учетом кастомного среза
             function updatePoints() {
                 if (points) {
                     scene.remove(points);
                 }
 
                 const vertices = [];
-                data_points.forEach((point) => {
-                    let show = true;
+                if (sliceActive) {
+                    const angleX_rad = (angleX_deg * Math.PI) / 180;
+                    const angleY_rad = (angleY_deg * Math.PI) / 180;
+                    const angleZ_rad = (angleZ_deg * Math.PI) / 180;
 
-                    // Применяем фильтр в зависимости от выбранной плоскости
-                    if (sliceActive) {
-                        switch (slicePlane) {
-                            case "xy":
-                                show = parseInt(point.z) == slicePos;
-                                break;
-                            case "yz":
-                                show = parseInt(point.x) == slicePos;
-                                break;
-                            case "xz":
-                                show = parseInt(point.y) == slicePos;
-                                break;
-                        }
+                    // Компоненты нормали (не обязательно единичной длины на этом этапе)
+                    const nx_raw = Math.cos(angleX_rad);
+                    const ny_raw = Math.cos(angleY_rad);
+                    const nz_raw = Math.cos(angleZ_rad);
+
+                    const magnitude = Math.sqrt(
+                        nx_raw * nx_raw + ny_raw * ny_raw + nz_raw * nz_raw
+                    );
+
+                    if (magnitude > 0.0001) {
+                        // Убедимся, что нормаль не нулевая
+                        const nx = nx_raw / magnitude; // Нормализуем вектор нормали
+                        const ny = ny_raw / magnitude;
+                        const nz = nz_raw / magnitude;
+
+                        data_points.forEach((point) => {
+                            // Расстояние от точки до плоскости, проходящей через начало координат с нормалью (nx,ny,nz)
+                            // Это проекция вектора точки на нормаль.
+                            const projectedDistance =
+                                nx * point.x + ny * point.y + nz * point.z;
+                            // Точка на срезе, если ее расстояние до плоскости (смещенной на sliceOffsetVal) мало
+                            if (
+                                Math.abs(projectedDistance - sliceOffsetVal) <
+                                sliceThickness / 2.0
+                            ) {
+                                vertices.push(point.x, point.y, point.z);
+                            }
+                        });
                     }
-
-                    if (show) {
+                    // Если magnitude близок к нулю (например, все углы 90 градусов),
+                    // плоскость не определена корректно, поэтому vertices останется пустым (точки не будут добавлены).
+                } else {
+                    // Если срез не активен, отображаем все точки
+                    data_points.forEach((point) => {
                         vertices.push(point.x, point.y, point.z);
-                    }
-                });
+                    });
+                }
 
                 particlesGeometry = new THREE.BufferGeometry();
                 particlesGeometry.setAttribute(
